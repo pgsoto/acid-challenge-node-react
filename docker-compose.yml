@@ -1,0 +1,114 @@
+version: '3'
+
+services:
+    reverse-proxy:
+        # The official v2.0 Traefik docker image
+        image: traefik:v2.0
+        # Enables the web UI and tells Traefik to listen to docker
+        command: --api.insecure=true --providers.docker
+        ports:
+        # The HTTP port
+        - "80:80"
+        # The Web UI (enabled by --api.insecure=true)
+        - "8080:8080"
+        volumes:
+        # So that Traefik can listen to the Docker events
+        - /var/run/docker.sock:/var/run/docker.sock
+    # redis:
+    #     image: redis:latest
+    #     ports:
+    #         - '6379:6379'
+
+    # mongo:
+    #     image: mongo
+    #     ports:
+    #     — "27017:27017"
+
+    ##########################
+    # Server container
+    ##########################
+    server:
+        build: ./server
+        expose:
+            - ${APP_SERVER_PORT}
+        ports:
+            - ${APP_SERVER_PORT}:${APP_SERVER_PORT}
+        environment: 
+            API_HOST: ${API_HOST}
+            APP_SERVER_PORT: ${APP_SERVER_PORT}
+        volumes:
+            - ./server/src:/srv/app/node-server/src
+        command: npm run dev
+        labels:
+            - traefik.frontend.rule=Host:api.localhost
+        # depends_on:
+        #     — mongo
+
+    ##########################
+    # Client container
+    ##########################
+    client:
+        build: ./client
+        expose:
+            - ${REACT_APP_PORT}
+        ports:
+            - ${REACT_APP_PORT}:${REACT_APP_PORT}    
+        environment: 
+            REACT_APP_PORT: ${REACT_APP_PORT}
+        volumes:
+            - ./client/src:/srv/app/next-server/src
+            - ./client/public:/srv/app/next-server/public
+        links:
+            - server
+        command: npm start
+        labels:
+            - traefik.frontend.rule=Host:localhost
+        depends_on:
+            - server
+
+    ##########################
+    # Server container
+    ##########################
+    # server:
+    #     container_name: acid-server
+    #     build:
+    #         context: ./server
+    #         dockerfile: Dockerfile
+    #     image: pgsoto/acid-server
+    #     ports:
+    #         - "8000:8000"
+    #     volumes:
+    #         - ./server:/app
+    #         # - /usr/src/server/node_modules
+    #     # environment:
+    #     #     - NODE_ENV=development
+    #     # depends_on:
+    #         # - database
+    #     labels:
+    #         - traefik.backend.rule=Host:${DOMAIN_NAME}/api
+            
+    ##########################
+    # Client container
+    ##########################
+    # client:
+    #     container_name: acid-web
+    #     build:
+    #         context: ./client
+    #         dockerfile: Dockerfile
+    #     image: pgsoto/acid-web
+    #     ports:
+    #         - "3000:3000"
+    #     volumes:
+    #         - ./client:/app
+    #         # - /usr/src/client/node_modules
+    #     # environment:
+    #     #     - NODE_ENV=development
+    #     expose:
+    #         - 3000
+    #     labels:
+    #     - traefik.frontend.rule=Host:${DOMAIN_NAME},www.${DOMAIN_NAME}
+    #     - traefik.port=3000
+    #     environment:
+    #     # You should remove this variable from .env into client folder
+    #     - REACT_APP_API_ENTRYPOINT=${HTTP_OR_SSL}${DOMAIN_NAME}/api
+    
